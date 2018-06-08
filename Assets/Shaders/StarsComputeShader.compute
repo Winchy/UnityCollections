@@ -1,0 +1,52 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+#define thread_group_size_x 8
+#define thread_group_size_y 8
+#define group_size_x 8
+#define group_size_y 8
+
+Texture2D PulseTex;
+SamplerState samplerPulseTex {
+	Filter = MIN_MAP_MIP_LINEAR;
+	AddressU = Clamp;
+	AddressV = Clamp;
+};
+Texture2D PosTex;
+SamplerState samplerPosTex {
+	Filter = MIN_MAP_MIP_LINEAR;
+	AddressU = Clamp;
+	AddressV = Clamp;
+};
+
+struct StarInfo {
+	float3 pulse;
+	float index;
+	float4 pos;
+};
+
+RWStructuredBuffer<StarInfo> outputBuffer;
+
+float minRadius;
+float maxRadius;
+
+[numthreads(8,8,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+	uint dimx = thread_group_size_x * group_size_x;
+	uint dimy = thread_group_size_y * group_size_y;
+	uint idx = id.x + id.y * dimx;
+
+	float2 texCoord = float2(id.x/float(dimx), id.y/float(dimy));
+	float4 pulseColor = PulseTex.SampleLevel(samplerPulseTex, texCoord, 0);
+	float4 posColor = PosTex.SampleLevel(samplerPosTex, texCoord, 0);
+
+	float3 angle = posColor.rgb;
+	float radius = minRadius + lerp(0, maxRadius - minRadius, posColor.a);
+
+	float3 pos = angle.xyz * radius;
+
+	outputBuffer[idx].index = idx;
+	outputBuffer[idx].pulse = pulseColor.rgb;
+	outputBuffer[idx].pos = float4(pos, 1);
+}
